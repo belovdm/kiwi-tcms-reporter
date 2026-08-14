@@ -8,7 +8,10 @@ export class KiwiJestReporter {
     private options: KiwiSyncOptions = {},
   ) {}
 
-  async onRunComplete(_contexts: unknown, results: { testResults?: unknown[] } | undefined): Promise<void> {
+  async onRunComplete(
+    _contexts: unknown,
+    results: { testResults?: unknown[] } | undefined,
+  ): Promise<void> {
     const mapped: TestResult[] = [];
     for (const file of (results?.testResults ?? []) as Array<{
       testFilePath?: string;
@@ -61,7 +64,11 @@ export class KiwiPlaywrightReporter {
       file: test.location?.file,
       status: normalizeStatus(result.status),
       durationMs: result.duration,
-      error: errs.map((e) => e.stack || e.message || "").join("\n").trim() || undefined,
+      error:
+        errs
+          .map((e) => e.stack || e.message || "")
+          .join("\n")
+          .trim() || undefined,
       tags: test.tags,
     });
   }

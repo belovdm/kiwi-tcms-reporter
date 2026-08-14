@@ -115,12 +115,18 @@ export class KiwiSync {
     };
   }
 
-  private async resolveRun(opts: KiwiSyncOptions, results: TestResult[], dryRun: boolean): Promise<number> {
+  private async resolveRun(
+    opts: KiwiSyncOptions,
+    results: TestResult[],
+    dryRun: boolean,
+  ): Promise<number> {
     if (opts.run) return opts.run;
 
     if (opts.plan && opts.build) {
       const productId = await this.projectId();
-      const builds = await this.client.call<unknown[]>("Build.filter", [{ product: productId, name: opts.build }]);
+      const builds = await this.client.call<unknown[]>("Build.filter", [
+        { product: productId, name: opts.build },
+      ]);
       let buildId = extractId((builds?.[0] as { id?: unknown } | undefined)?.id);
 
       if (buildId && !dryRun) {
@@ -131,14 +137,20 @@ export class KiwiSync {
         if (existing) return existing;
       }
       if (dryRun) {
-        throw new Error("dry-run: no TestRun found or created. Pass --run <id> to preview without writes.");
+        throw new Error(
+          "dry-run: no TestRun found or created. Pass --run <id> to preview without writes.",
+        );
       }
 
       if (!buildId) {
-        const versions = await this.client.call<unknown[]>("Version.filter", [{ product: productId }]);
+        const versions = await this.client.call<unknown[]>("Version.filter", [
+          { product: productId },
+        ]);
         const versionId = extractId((versions?.[0] as { id?: unknown } | undefined)?.id);
         if (!versionId) {
-          throw new Error("No Version exists for this product — create one in Kiwi before creating a Build.");
+          throw new Error(
+            "No Version exists for this product — create one in Kiwi before creating a Build.",
+          );
         }
         const created = await this.client.call<{ id?: unknown }>("Build.create", [
           { name: opts.build, version: versionId },
@@ -217,10 +229,16 @@ export class KiwiSync {
       const id = extractId(first?.id);
       return id ? { id, summary: String(first?.summary ?? "") } : null;
     };
-    const exact = await this.client.call<unknown[]>("TestCase.filter", [{ ...scope, summary__iexact: query }]);
+    const exact = await this.client.call<unknown[]>("TestCase.filter", [
+      { ...scope, summary__iexact: query },
+    ]);
     return (
       fromList(exact) ??
-      fromList(await this.client.call<unknown[]>("TestCase.filter", [{ ...scope, summary__icontains: query }]))
+      fromList(
+        await this.client.call<unknown[]>("TestCase.filter", [
+          { ...scope, summary__icontains: query },
+        ]),
+      )
     );
   }
 
@@ -238,7 +256,9 @@ export class KiwiSync {
     opts: KiwiSyncOptions,
   ): Promise<{ id: number; summary: string } | null> {
     const productId = await this.projectId();
-    const categories = await this.client.call<unknown[]>("Category.filter", [{ product: productId }]);
+    const categories = await this.client.call<unknown[]>("Category.filter", [
+      { product: productId },
+    ]);
     const categoryId = extractId((categories?.[0] as { id?: unknown } | undefined)?.id);
 
     const priorities: Record<string, number> = {};
@@ -246,7 +266,9 @@ export class KiwiSync {
       const rows = await this.client.call<unknown[]>("Priority.filter", [{}]);
       for (const r of rows ?? []) {
         const id = extractId((r as { id?: unknown }).id);
-        const nm = extractName((r as { value?: unknown; name?: unknown }).value ?? (r as { name?: unknown }).name);
+        const nm = extractName(
+          (r as { value?: unknown; name?: unknown }).value ?? (r as { name?: unknown }).name,
+        );
         if (id && nm) priorities[nm.toLowerCase()] = id;
       }
     } catch {
@@ -261,7 +283,9 @@ export class KiwiSync {
     if (categoryId) values.category = categoryId;
     if (priorityId) values.priority = priorityId;
 
-    const created = await this.client.call<{ id?: unknown; summary?: unknown }>("TestCase.create", [values]);
+    const created = await this.client.call<{ id?: unknown; summary?: unknown }>("TestCase.create", [
+      values,
+    ]);
     const id = extractId(created?.id);
     if (!id) return null;
 
@@ -275,14 +299,22 @@ export class KiwiSync {
     return { id, summary: String(created?.summary ?? values.summary) };
   }
 
-  private async ensureExecution(runId: number, caseId: number, dryRun: boolean): Promise<number | undefined> {
-    const rows = await this.client.call<unknown[]>("TestExecution.filter", [{ run: runId, case: caseId }]);
+  private async ensureExecution(
+    runId: number,
+    caseId: number,
+    dryRun: boolean,
+  ): Promise<number | undefined> {
+    const rows = await this.client.call<unknown[]>("TestExecution.filter", [
+      { run: runId, case: caseId },
+    ]);
     const existing = extractId((rows?.[0] as { id?: unknown } | undefined)?.id);
     if (existing) return existing;
     if (dryRun) return undefined;
 
     await this.client.call("TestRun.add_case", [runId, caseId]);
-    const again = await this.client.call<unknown[]>("TestExecution.filter", [{ run: runId, case: caseId }]);
+    const again = await this.client.call<unknown[]>("TestExecution.filter", [
+      { run: runId, case: caseId },
+    ]);
     return extractId((again?.[0] as { id?: unknown } | undefined)?.id);
   }
 
@@ -306,7 +338,8 @@ export class KiwiSync {
       },
     ]);
 
-    const isFailure = t.status === "failed" || t.status === "timedOut" || t.status === "interrupted";
+    const isFailure =
+      t.status === "failed" || t.status === "timedOut" || t.status === "interrupted";
     if (isFailure && t.error && opts.commentFailures !== false) {
       const limit = opts.limitErrorLength ?? 2000;
       const body = t.error.length > limit ? `${t.error.slice(0, limit)}\n… (truncated)` : t.error;
@@ -322,7 +355,9 @@ export class KiwiSync {
     if (!this.statusMap) this.statusMap = await this.buildStatusMap(runId);
     const id = this.statusMap.get(name.toUpperCase());
     if (!id) {
-      throw new Error(`Status "${name}" not found. Available: ${[...this.statusMap.keys()].join(", ")}`);
+      throw new Error(
+        `Status "${name}" not found. Available: ${[...this.statusMap.keys()].join(", ")}`,
+      );
     }
     return id;
   }

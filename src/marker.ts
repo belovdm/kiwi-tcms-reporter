@@ -4,7 +4,7 @@ import type { TestResult } from "./types.js";
 export function extractCaseIds(t: Pick<TestResult, "title" | "fullTitle" | "tags">): number[] {
   const haystack = [t.fullTitle ?? "", t.title, ...(t.tags ?? [])].join(" ");
   const out = new Set<number>();
-  const re = /\b(?:C|TC|KIWI)[\-_:]?(\d{2,7})\b/gi;
+  const re = /\b(?:C|TC|KIWI)[-_:]?(\d{2,7})\b/gi;
   let m: RegExpExecArray | null;
   while ((m = re.exec(haystack))) {
     out.add(parseInt(m[1], 10));

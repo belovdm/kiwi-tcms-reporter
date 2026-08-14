@@ -4,7 +4,18 @@ import { parseArgs } from "../src/pipe.js";
 describe("parseArgs", () => {
   it("parses run/plan/build/results/format flags", () => {
     expect(
-      parseArgs(["--run", "93", "--plan", "12", "--build", "rc1", "--results", "out.xml", "--format", "junit"]),
+      parseArgs([
+        "--run",
+        "93",
+        "--plan",
+        "12",
+        "--build",
+        "rc1",
+        "--results",
+        "out.xml",
+        "--format",
+        "junit",
+      ]),
     ).toMatchObject({
       run: 93,
       plan: 12,
@@ -15,7 +26,9 @@ describe("parseArgs", () => {
   });
 
   it("parses boolean flags", () => {
-    expect(parseArgs(["--create-missing", "--dry-run", "--strict", "--match-by", "tag"])).toMatchObject({
+    expect(
+      parseArgs(["--create-missing", "--dry-run", "--strict", "--match-by", "tag"]),
+    ).toMatchObject({
       createMissing: true,
       dryRun: true,
       strict: true,

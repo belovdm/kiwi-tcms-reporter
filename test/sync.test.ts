@@ -6,7 +6,10 @@ interface RpcCall {
   params: unknown;
 }
 
-function fakeClient(handler: (call: RpcCall) => unknown, extras: Partial<SyncClient> = {}): SyncClient & { calls: RpcCall[] } {
+function fakeClient(
+  handler: (call: RpcCall) => unknown,
+  extras: Partial<SyncClient> = {},
+): SyncClient & { calls: RpcCall[] } {
   const calls: RpcCall[] = [];
   return {
     endpoint: "https://kiwi.example/json-rpc/",
@@ -116,12 +119,15 @@ describe("KiwiSync", () => {
       throw new Error(`unexpected ${call.method}`);
     });
 
-    const report = await new KiwiSync(client).sync([{ title: "New flow", fullTitle: "New flow", status: "passed" }], {
-      run: 93,
-      plan: 12,
-      createMissing: true,
-      matchBy: "tag",
-    });
+    const report = await new KiwiSync(client).sync(
+      [{ title: "New flow", fullTitle: "New flow", status: "passed" }],
+      {
+        run: 93,
+        plan: 12,
+        createMissing: true,
+        matchBy: "tag",
+      },
+    );
 
     expect(report.createdCases).toBe(1);
     expect(report.matched).toBe(1);

@@ -104,10 +104,19 @@ export function parseResultsJson(raw: string): TestResult[] {
     return {
       title,
       fullTitle: typeof fullTitle === "string" ? fullTitle : undefined,
-      file: typeof t.file === "string" ? t.file : typeof t.classname === "string" ? t.classname : undefined,
+      file:
+        typeof t.file === "string"
+          ? t.file
+          : typeof t.classname === "string"
+            ? t.classname
+            : undefined,
       status: normalizeStatus(typeof t.status === "string" ? t.status : undefined),
       durationMs:
-        typeof t.durationMs === "number" ? t.durationMs : typeof t.duration === "number" ? t.duration : undefined,
+        typeof t.durationMs === "number"
+          ? t.durationMs
+          : typeof t.duration === "number"
+            ? t.duration
+            : undefined,
       error: typeof errorRaw === "string" && errorRaw.trim() ? errorRaw : undefined,
       tags: Array.isArray(t.tags) ? t.tags.map(String) : undefined,
     };

@@ -1,3 +1,4 @@
+import { applyInsecureTls as applyInsecureTlsShared } from "@kiwi-tcms-ai/kiwi-tcms-client";
 import type { KiwiClientConfig } from "@kiwi-tcms-ai/kiwi-tcms-client";
 import type { KiwiSyncOptions } from "./types.js";
 
@@ -25,7 +26,7 @@ export function configFromEnv(
 
 export function applyInsecureTls(): void {
   if (process.env.KIWI_INSECURE === "1" || process.env.KIWI_INSECURE === "true") {
-    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+    applyInsecureTlsShared();
   }
 }
 

@@ -1,11 +1,5 @@
 export type FrameworkStatus =
-  | "passed"
-  | "failed"
-  | "skipped"
-  | "pending"
-  | "todo"
-  | "timedOut"
-  | "interrupted";
+  "passed" | "failed" | "skipped" | "pending" | "todo" | "timedOut" | "interrupted";
 
 export interface TestResult {
   title: string;

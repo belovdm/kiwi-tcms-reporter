@@ -100,7 +100,11 @@ export function parseArgs(argv: string[]): PipeArgs {
 
 export async function runPipe(args: PipeArgs, raw: string): Promise<number> {
   const format =
-    !args.format || args.format === "auto" ? (raw.trim().startsWith("<") ? "junit" : "json") : args.format;
+    !args.format || args.format === "auto"
+      ? raw.trim().startsWith("<")
+        ? "junit"
+        : "json"
+      : args.format;
 
   const results = format === "junit" ? parseJunit(raw) : parseResultsJson(raw);
   if (!results.length) {
