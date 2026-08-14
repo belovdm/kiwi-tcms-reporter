@@ -28,7 +28,8 @@ export interface KiwiSyncOptions {
   dryRun?: boolean;
   limitErrorLength?: number;
   url?: string;
-  token?: string;
+  username?: string;
+  password?: string;
   project?: string;
 }
 

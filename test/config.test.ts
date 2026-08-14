@@ -1,7 +1,14 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { configFromEnv } from "../src/config.js";
 
-const KEYS = ["KIWI_URL", "KIWI_TOKEN", "KIWI_PROJECT", "KIWI_INSECURE", "KIWI_TIMEOUT"] as const;
+const KEYS = [
+  "KIWI_URL",
+  "KIWI_USERNAME",
+  "KIWI_PASSWORD",
+  "KIWI_PROJECT",
+  "KIWI_INSECURE",
+  "KIWI_TIMEOUT",
+] as const;
 
 describe("configFromEnv", () => {
   const prev: Record<string, string | undefined> = {};
@@ -21,30 +28,44 @@ describe("configFromEnv", () => {
     }
   }
 
-  it("reads url, token, project and strips a trailing slash", () => {
+  it("reads url, username, password, project and strips a trailing slash", () => {
     setEnv({
       KIWI_URL: "https://kiwi.example/",
-      KIWI_TOKEN: "tok",
+      KIWI_USERNAME: "admin",
+      KIWI_PASSWORD: "secret",
       KIWI_PROJECT: "Payments",
     });
     expect(configFromEnv()).toEqual({
       url: "https://kiwi.example",
-      token: "tok",
+      username: "admin",
+      password: "secret",
       project: "Payments",
       timeoutMs: 30_000,
     });
   });
 
-  it("throws when url or token is missing", () => {
-    setEnv({ KIWI_URL: "", KIWI_TOKEN: "" });
+  it("throws when url or credentials are missing", () => {
+    setEnv({ KIWI_URL: "", KIWI_USERNAME: "", KIWI_PASSWORD: "" });
     expect(() => configFromEnv()).toThrow(/KIWI_URL/);
   });
 
   it("lets reporter options override env", () => {
-    setEnv({ KIWI_URL: "https://env.example", KIWI_TOKEN: "env-tok" });
-    expect(configFromEnv({ url: "https://opt.example", token: "opt-tok", project: "Shop" })).toMatchObject({
+    setEnv({
+      KIWI_URL: "https://env.example",
+      KIWI_USERNAME: "env-user",
+      KIWI_PASSWORD: "env-pass",
+    });
+    expect(
+      configFromEnv({
+        url: "https://opt.example",
+        username: "opt-user",
+        password: "opt-pass",
+        project: "Shop",
+      }),
+    ).toMatchObject({
       url: "https://opt.example",
-      token: "opt-tok",
+      username: "opt-user",
+      password: "opt-pass",
       project: "Shop",
     });
   });

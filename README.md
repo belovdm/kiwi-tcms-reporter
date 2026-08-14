@@ -26,7 +26,8 @@ npm run build        # tsc -> dist/
 | Переменная | Обязательна | Описание |
 |---|---|---|
 | `KIWI_URL` | да | Базовый URL инстанса, без суффикса `/json-rpc/` |
-| `KIWI_TOKEN` | да | Персональный API-токен |
+| `KIWI_USERNAME` | да | Логин Kiwi TCMS (`Auth.login`) |
+| `KIWI_PASSWORD` | да | Пароль Kiwi TCMS |
 | `KIWI_PROJECT` | режим plan | Имя или id продукта (Product) |
 | `KIWI_TIMEOUT` | нет | Таймаут RPC, мс (по умолчанию `30000`) |
 | `KIWI_INSECURE` | нет | `1` / `true` — не проверять TLS-сертификат |

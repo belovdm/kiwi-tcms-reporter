@@ -26,7 +26,7 @@ Options:
   --strict              non-zero exit if unmatched tests or failed ops
   -h, --help            this help
 
-Env: KIWI_URL, KIWI_TOKEN, KIWI_PROJECT (required for plan mode),
+Env: KIWI_URL, KIWI_USERNAME, KIWI_PASSWORD, KIWI_PROJECT (required for plan mode),
      KIWI_TIMEOUT, KIWI_INSECURE.
 
 Matching test ↔ case:

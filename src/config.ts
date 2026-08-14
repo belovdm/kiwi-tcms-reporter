@@ -2,20 +2,22 @@ import type { KiwiClientConfig } from "@kiwi-tcms-ai/kiwi-tcms-client";
 import type { KiwiSyncOptions } from "./types.js";
 
 export function configFromEnv(
-  overrides: Pick<KiwiSyncOptions, "url" | "token" | "project"> = {},
+  overrides: Pick<KiwiSyncOptions, "url" | "username" | "password" | "project"> = {},
 ): KiwiClientConfig {
   const url = (overrides.url ?? process.env.KIWI_URL ?? "").trim().replace(/\/+$/, "");
-  const token = (overrides.token ?? process.env.KIWI_TOKEN ?? "").trim();
-  if (!url || !token) {
+  const username = (overrides.username ?? process.env.KIWI_USERNAME ?? "").trim();
+  const password = overrides.password ?? process.env.KIWI_PASSWORD ?? "";
+  if (!url || !username || !password) {
     throw new Error(
-      "KIWI_URL / KIWI_TOKEN are not set. Export them before the run, or pass url/token in reporter options.",
+      "KIWI_URL / KIWI_USERNAME / KIWI_PASSWORD are not set. Export them before the run, or pass url/username/password in reporter options.",
     );
   }
   const project = (overrides.project ?? process.env.KIWI_PROJECT ?? "").trim();
   const timeoutRaw = process.env.KIWI_TIMEOUT;
   return {
     url,
-    token,
+    username,
+    password,
     project: project || undefined,
     timeoutMs: timeoutRaw ? parseInt(timeoutRaw, 10) : 30_000,
   };
