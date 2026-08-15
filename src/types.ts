@@ -20,6 +20,7 @@ export interface KiwiSyncOptions {
   createMissing?: boolean;
   commentFailures?: boolean;
   dryRun?: boolean;
+  closeRun?: boolean;
   limitErrorLength?: number;
   url?: string;
   username?: string;
@@ -50,6 +51,8 @@ export interface SyncReport {
   byKiwiStatus: Record<string, number>;
   entries: SyncEntry[];
   dryRun: boolean;
+  closed: boolean;
+  closeRequested: boolean;
 }
 
 export interface SyncClient {

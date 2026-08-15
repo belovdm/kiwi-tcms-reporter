@@ -23,6 +23,7 @@ Options:
   --match-by <mode>     auto | tag | title (default auto)
   --create-missing      create a TestCase for unmatched tests
   --dry-run             match only, write nothing
+  --close-run           set TestRun.stop_date after a successful sync
   --strict              non-zero exit if unmatched tests or failed ops
   -h, --help            this help
 
@@ -84,6 +85,9 @@ export function parseArgs(argv: string[]): PipeArgs {
         break;
       case "--dry-run":
         out.dryRun = true;
+        break;
+      case "--close-run":
+        out.closeRun = true;
         break;
       case "--strict":
         out.strict = true;

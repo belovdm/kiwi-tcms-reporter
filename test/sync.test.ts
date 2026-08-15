@@ -89,6 +89,82 @@ describe("KiwiSync", () => {
     expect(client.calls.map((c) => c.method)).toEqual(["TestCase.filter", "TestExecution.filter"]);
   });
 
+  it("closeRun sets TestRun.stop_date after syncing executions", async () => {
+    const client = fakeClient((call) => {
+      if (call.method === "TestCase.filter") return [{ id: 412, summary: "Pay" }];
+      if (call.method === "TestExecution.filter") return [{ id: 1 }];
+      if (call.method === "TestExecutionStatus.filter") return [{ id: 4, name: "PASSED" }];
+      if (call.method === "TestExecution.update") return {};
+      if (call.method === "TestRun.update") return { id: 93 };
+      throw new Error(`unexpected ${call.method}`);
+    });
+
+    const report = await new KiwiSync(client).sync([{ title: "pay [C412]", status: "passed" }], {
+      run: 93,
+      closeRun: true,
+    });
+
+    expect(report.closed).toBe(true);
+    const update = client.calls.find((c) => c.method === "TestRun.update");
+    expect(update?.params).toEqual([
+      93,
+      expect.objectContaining({ stop_date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/) }),
+    ]);
+  });
+
+  it("does not close the run when there are unmatched tests", async () => {
+    const client = fakeClient((call) => {
+      if (call.method === "TestCase.filter") return [];
+      throw new Error(`unexpected ${call.method}`);
+    });
+
+    const report = await new KiwiSync(client).sync([{ title: "orphan test", status: "passed" }], {
+      run: 93,
+      matchBy: "tag",
+      closeRun: true,
+    });
+
+    expect(report.closed).toBe(false);
+    expect(report.closeRequested).toBe(true);
+    expect(client.calls.map((c) => c.method)).not.toContain("TestRun.update");
+  });
+
+  it("does not close the run when a sync operation failed", async () => {
+    const client = fakeClient((call) => {
+      if (call.method === "TestCase.filter") return [{ id: 412, summary: "Pay" }];
+      if (call.method === "TestExecution.filter") return [{ id: 1 }];
+      if (call.method === "TestExecutionStatus.filter") return [{ id: 4, name: "PASSED" }];
+      if (call.method === "TestExecution.update") throw new Error("boom");
+      throw new Error(`unexpected ${call.method}`);
+    });
+
+    const report = await new KiwiSync(client).sync([{ title: "pay [C412]", status: "passed" }], {
+      run: 93,
+      closeRun: true,
+    });
+
+    expect(report.failedOps).toBe(1);
+    expect(report.closed).toBe(false);
+    expect(client.calls.map((c) => c.method)).not.toContain("TestRun.update");
+  });
+
+  it("does not close the run on dry-run even when closeRun is set", async () => {
+    const client = fakeClient((call) => {
+      if (call.method === "TestCase.filter") return [{ id: 412, summary: "Pay" }];
+      if (call.method === "TestExecution.filter") return [{ id: 1 }];
+      throw new Error(`unexpected ${call.method}`);
+    });
+
+    const report = await new KiwiSync(client).sync([{ title: "pay [C412]", status: "passed" }], {
+      run: 93,
+      closeRun: true,
+      dryRun: true,
+    });
+
+    expect(report.closed).toBe(false);
+    expect(client.calls.map((c) => c.method)).not.toContain("TestRun.update");
+  });
+
   it("lists unmatched tests when no case is found", async () => {
     const client = fakeClient((call) => {
       if (call.method === "TestCase.filter") return [];
@@ -137,6 +213,7 @@ describe("KiwiSync", () => {
 
   it("reuses an active run for plan + build", async () => {
     const client = fakeClient((call) => {
+      if (call.method === "TestPlan.filter") return [{ id: 12, product_version: 2 }];
       if (call.method === "Build.filter") return [{ id: 8, name: "1.4.2-rc1" }];
       if (call.method === "TestRun.filter") return [{ id: 77 }];
       if (call.method === "TestCase.filter") return [{ id: 412, summary: "Pay" }];
@@ -153,13 +230,74 @@ describe("KiwiSync", () => {
 
     expect(report.runId).toBe(77);
     expect(client.calls.some((c) => c.method === "TestRun.create")).toBe(false);
+    expect(client.calls.find((c) => c.method === "Build.filter")?.params).toEqual([
+      { name: "1.4.2-rc1", version: 2 },
+    ]);
+  });
+
+  it("falls back to a product Version when the plan has no product_version", async () => {
+    const client = fakeClient((call) => {
+      if (call.method === "TestPlan.filter") return [{ id: 12, product_version: null }];
+      if (call.method === "Version.filter") return [{ id: 5 }];
+      if (call.method === "Build.filter") return [{ id: 8 }];
+      if (call.method === "TestRun.filter") return [{ id: 77 }];
+      if (call.method === "TestCase.filter") return [{ id: 412, summary: "Pay" }];
+      if (call.method === "TestExecution.filter") return [{ id: 1 }];
+      if (call.method === "TestExecutionStatus.filter") return [{ id: 4, name: "PASSED" }];
+      if (call.method === "TestExecution.update") return {};
+      throw new Error(`unexpected ${call.method}`);
+    });
+
+    const report = await new KiwiSync(client).sync([{ title: "pay [C412]", status: "passed" }], {
+      plan: 12,
+      build: "1.4.2-rc1",
+    });
+
+    expect(report.runId).toBe(77);
+    expect(client.calls.find((c) => c.method === "Version.filter")?.params).toEqual([
+      { product: 7 },
+    ]);
+    expect(client.calls.find((c) => c.method === "Build.filter")?.params).toEqual([
+      { name: "1.4.2-rc1", version: 5 },
+    ]);
+  });
+
+  it("falls back to the product-keyed Build schema on older Kiwi instances", async () => {
+    const client = fakeClient((call) => {
+      if (call.method === "TestPlan.filter") return [{ id: 12, product_version: 2 }];
+      if (call.method === "Build.filter") {
+        if ("version" in (call.params as Record<string, unknown>[])[0]) {
+          throw new Error("unknown field: version");
+        }
+        return [{ id: 8 }];
+      }
+      if (call.method === "TestRun.filter") return [{ id: 77 }];
+      if (call.method === "TestCase.filter") return [{ id: 412, summary: "Pay" }];
+      if (call.method === "TestExecution.filter") return [{ id: 1 }];
+      if (call.method === "TestExecutionStatus.filter") return [{ id: 4, name: "PASSED" }];
+      if (call.method === "TestExecution.update") return {};
+      throw new Error(`unexpected ${call.method}`);
+    });
+
+    const report = await new KiwiSync(client).sync([{ title: "pay [C412]", status: "passed" }], {
+      plan: 12,
+      build: "1.4.2-rc1",
+    });
+
+    expect(report.runId).toBe(77);
+    const buildCalls = client.calls.filter((c) => c.method === "Build.filter");
+    expect(buildCalls).toEqual([
+      { method: "Build.filter", params: [{ name: "1.4.2-rc1", version: 2 }] },
+      { method: "Build.filter", params: [{ name: "1.4.2-rc1", product: 7 }] },
+    ]);
   });
 
   it("creates a missing build and run, then adds tagged cases", async () => {
     const client = fakeClient((call) => {
+      if (call.method === "TestPlan.filter") return [{ id: 12, product_version: 3 }];
       if (call.method === "Build.filter") return [];
-      if (call.method === "Version.filter") return [{ id: 3 }];
       if (call.method === "Build.create") return { id: 9 };
+      if (call.method === "User.filter") return [{ id: 3, username: "aiBot" }];
       if (call.method === "TestRun.create") return { id: 80 };
       if (call.method === "TestRun.add_case") return true;
       if (call.method === "TestCase.filter") return [{ id: 412, summary: "Pay" }];
@@ -175,12 +313,22 @@ describe("KiwiSync", () => {
     });
 
     expect(report.runId).toBe(80);
-    expect(client.calls.some((c) => c.method === "Build.create")).toBe(true);
-    expect(client.calls.some((c) => c.method === "TestRun.create")).toBe(true);
+    expect(client.calls.find((c) => c.method === "Build.create")?.params).toEqual([
+      { name: "1.4.2-rc1", version: 3 },
+    ]);
+    expect(client.calls.find((c) => c.method === "TestRun.create")?.params).toEqual([
+      expect.objectContaining({
+        plan: 12,
+        build: 9,
+        manager: 3,
+        default_tester: 3,
+      }),
+    ]);
   });
 
   it("dry-run without --run throws when no active run exists", async () => {
     const client = fakeClient((call) => {
+      if (call.method === "TestPlan.filter") return [{ id: 12, product_version: 2 }];
       if (call.method === "Build.filter") return [];
       throw new Error(`unexpected ${call.method}`);
     });
@@ -207,6 +355,8 @@ describe("KiwiSync", () => {
       byKiwiStatus: { PASSED: 1, FAILED: 1 },
       entries: [],
       dryRun: false,
+      closed: false,
+      closeRequested: false,
     });
     expect(text).toContain("run #93");
     expect(text).toContain("https://kiwi.example/runs/93/");

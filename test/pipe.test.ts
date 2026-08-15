@@ -27,11 +27,12 @@ describe("parseArgs", () => {
 
   it("parses boolean flags", () => {
     expect(
-      parseArgs(["--create-missing", "--dry-run", "--strict", "--match-by", "tag"]),
+      parseArgs(["--create-missing", "--dry-run", "--strict", "--close-run", "--match-by", "tag"]),
     ).toMatchObject({
       createMissing: true,
       dryRun: true,
       strict: true,
+      closeRun: true,
       matchBy: "tag",
     });
   });

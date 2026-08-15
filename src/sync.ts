@@ -1,5 +1,5 @@
 import { extractId, extractName, KiwiClient } from "@kiwi-tcms-ai/kiwi-tcms-client";
-import { applyInsecureTls, coerceNumber, configFromEnv } from "./config.js";
+import { applyInsecureTls, coerceBoolean, coerceNumber, configFromEnv } from "./config.js";
 import { extractCaseIds } from "./marker.js";
 import type {
   FrameworkStatus,
@@ -100,6 +100,15 @@ export class KiwiSync {
       entries.push(entry);
     }
 
+    // Match the tool's own definition of "successful sync" (same as --strict):
+    // no failed ops and no unmatched tests.
+    const syncSucceeded = failedOps === 0 && unmatched.length === 0;
+    let closed = false;
+    if (opts.closeRun && !dryRun && syncSucceeded) {
+      await this.client.call("TestRun.update", [runId, { stop_date: new Date().toISOString() }]);
+      closed = true;
+    }
+
     return {
       runId,
       runUrl: `${this.client.endpoint.replace(/\/json-rpc\/$/, "")}/runs/${runId}/`,
@@ -112,6 +121,8 @@ export class KiwiSync {
       byKiwiStatus,
       entries,
       dryRun,
+      closed,
+      closeRequested: opts.closeRun === true,
     };
   }
 
@@ -123,11 +134,29 @@ export class KiwiSync {
     if (opts.run) return opts.run;
 
     if (opts.plan && opts.build) {
+      const plans = await this.client.call<unknown[]>("TestPlan.filter", [{ id: opts.plan }]);
+      const plan = plans?.[0] as { product_version?: unknown } | undefined;
+      if (!plan) throw new Error(`TestPlan ${opts.plan} not found.`);
+
       const productId = await this.projectId();
-      const builds = await this.client.call<unknown[]>("Build.filter", [
-        { product: productId, name: opts.build },
-      ]);
-      let buildId = extractId((builds?.[0] as { id?: unknown } | undefined)?.id);
+      // Kiwi 16+ Build references Version, not Product directly — prefer the
+      // plan's own version. Older plans (or ones created without an explicit
+      // product_version) fall back to any existing Version for the product.
+      let versionId = extractId(plan.product_version);
+      if (!versionId) {
+        const versions = await this.client.call<unknown[]>("Version.filter", [
+          { product: productId },
+        ]);
+        versionId = extractId((versions?.[0] as { id?: unknown } | undefined)?.id);
+      }
+      if (!versionId) {
+        throw new Error(
+          `TestPlan ${opts.plan} has no product_version and no Version exists for the ` +
+            "product — create one in Kiwi before creating a Build.",
+        );
+      }
+
+      let buildId = await this.findBuild(opts.build, productId, versionId);
 
       if (buildId && !dryRun) {
         const runs = await this.client.call<unknown[]>("TestRun.filter", [
@@ -143,27 +172,17 @@ export class KiwiSync {
       }
 
       if (!buildId) {
-        const versions = await this.client.call<unknown[]>("Version.filter", [
-          { product: productId },
-        ]);
-        const versionId = extractId((versions?.[0] as { id?: unknown } | undefined)?.id);
-        if (!versionId) {
-          throw new Error(
-            "No Version exists for this product — create one in Kiwi before creating a Build.",
-          );
-        }
-        const created = await this.client.call<{ id?: unknown }>("Build.create", [
-          { name: opts.build, version: versionId },
-        ]);
-        buildId = extractId(created?.id);
-        if (!buildId) throw new Error("Failed to create Build");
+        buildId = await this.createBuild(opts.build, productId, versionId);
       }
 
+      const managerId = await this.currentUserId();
       const run = await this.client.call<{ id?: unknown }>("TestRun.create", [
         {
           plan: opts.plan,
           build: buildId,
           summary: opts.runSummary ?? `Autosync ${new Date().toISOString()}`,
+          manager: managerId,
+          default_tester: managerId,
         },
       ]);
       const runId = extractId(run?.id);
@@ -184,6 +203,58 @@ export class KiwiSync {
     throw new Error(
       "Cannot resolve a TestRun: pass run (or --run), or plan + build (--plan/--build; KIWI_PROJECT is required).",
     );
+  }
+
+  private async findBuild(
+    name: string,
+    productId: number,
+    versionId: number,
+  ): Promise<number | undefined> {
+    try {
+      // Kiwi 16+: Build references Version, not Product directly.
+      const rows = await this.client.call<unknown[]>("Build.filter", [
+        { name, version: versionId },
+      ]);
+      return extractId((rows?.[0] as { id?: unknown } | undefined)?.id);
+    } catch {
+      // Older Kiwi: Build has no version field, only product.
+      const rows = await this.client.call<unknown[]>("Build.filter", [
+        { name, product: productId },
+      ]);
+      return extractId((rows?.[0] as { id?: unknown } | undefined)?.id);
+    }
+  }
+
+  private async createBuild(name: string, productId: number, versionId: number): Promise<number> {
+    try {
+      const created = await this.client.call<{ id?: unknown }>("Build.create", [
+        { name, version: versionId },
+      ]);
+      const id = extractId(created?.id);
+      if (id) return id;
+    } catch {
+      /* older Kiwi: Build.create expects product, not version */
+    }
+    const created = await this.client.call<{ id?: unknown }>("Build.create", [
+      { name, product: productId },
+    ]);
+    const id = extractId(created?.id);
+    if (!id) throw new Error("Failed to create Build");
+    return id;
+  }
+
+  private async currentUserId(): Promise<number> {
+    // User.filter with zero positional args resolves to the logged-in user.
+    // Passing an empty-object filter (`[{}]`) is a different, unfiltered
+    // listing call and returns an arbitrary user instead.
+    const rows = await this.client.call<unknown[]>("User.filter", []);
+    const id = extractId((rows?.[0] as { id?: unknown } | undefined)?.id);
+    if (!id) {
+      throw new Error(
+        "Cannot resolve the logged-in user for TestRun.manager — User.filter returned no id.",
+      );
+    }
+    return id;
   }
 
   private async projectId(): Promise<number> {
@@ -421,6 +492,7 @@ export async function runSync(results: TestResult[], rawOptions: KiwiSyncOptions
       ...rawOptions,
       run: coerceNumber(rawOptions.run) ?? rawOptions.run,
       plan: coerceNumber(rawOptions.plan) ?? rawOptions.plan,
+      closeRun: coerceBoolean(rawOptions.closeRun) ?? rawOptions.closeRun,
     };
     const cfg = configFromEnv(options);
     applyInsecureTls();
@@ -445,6 +517,10 @@ export function printReport(r: SyncReport): string {
     .map(([s, n]) => `${s}: ${n}`)
     .join(" · ");
   if (byStatus) lines.push(`[kiwi-tcms] ${byStatus}`);
+  if (r.closed) lines.push("[kiwi-tcms] run closed");
+  else if (r.closeRequested && !r.dryRun) {
+    lines.push("[kiwi-tcms] run NOT closed — sync had errors or unmatched tests");
+  }
   if (r.unmatched.length) {
     lines.push(`[kiwi-tcms] unmatched (${r.unmatched.length}):`);
     for (const u of r.unmatched.slice(0, 10)) lines.push(`  - ${u}`);

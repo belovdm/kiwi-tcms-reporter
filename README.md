@@ -80,9 +80,13 @@ mocha --reporter @kiwi-tcms-ai/kiwi-tcms-reporter/mocha \
 | `createMissing`    | Создавать TestCase для несопоставленных тестов                |
 | `commentFailures`  | Комментировать упавшие исполнения (по умолчанию да)           |
 | `dryRun`           | Только сопоставление, без записи в Kiwi                       |
+| `closeRun`         | После **успешного** синка (без ошибок и unmatched) выставить TestRun.stop_date |
 | `limitErrorLength` | Обрезать текст ошибки в комментарии (по умолчанию 2000)       |
 
 Либо передайте `run`, либо пару `plan` + `build` (тогда нужен `KIWI_PROJECT`).
+Режиму `plan`+`build` также нужна Version, к которой привязывается Build: либо
+`product_version` самого плана, либо (fallback) любая существующая Version
+продукта. Если версии нет ни там, ни там — сначала создайте её в Kiwi.
 
 ## Pipe (любой фреймворк, который умеет JUnit или JSON)
 
