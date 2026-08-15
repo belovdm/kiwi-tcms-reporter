@@ -1,6 +1,6 @@
 {
   "name": "@kiwi-tcms-ai/kiwi-tcms-reporter",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Playwright / Jest / Mocha reporters and a JUnit/JSON pipe that sync automated test results into Kiwi TCMS",
   "license": "MIT",
   "author": "Belov <belov.u30gt@gmail.com>",
