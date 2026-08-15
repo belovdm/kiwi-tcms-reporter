@@ -75,6 +75,6 @@
     "vitest": "^2.0.5"
   },
   "dependencies": {
-    "@kiwi-tcms-ai/kiwi-tcms-client": "^0.2.1"
+    "@kiwi-tcms-ai/kiwi-tcms-client": "^0.4.0"
   }
 }
